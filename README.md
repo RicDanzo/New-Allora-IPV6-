@@ -51,6 +51,74 @@ sudo apt-get install docker-ce docker-ce-cli containerd.io
 ```
 docker version
 ```
+## Setup Custom Docker Network
+
+To disable IPv6 and use a custom Docker network, follow these steps:
+
+1. **Update Docker Daemon Configuration**:
+   ```sh
+   sudo nano /etc/docker/daemon.json
+
+   {
+    "ipv6": false
+   }
+Restart Docker:
+   sudo systemctl restart docker
+Create Custom Network:
+  docker network create --ipv6=false mynetwork
+Run Docker Compose:
+  docker-compose up -d
+version: '3.8'
+
+networks:
+  eth-model-local:
+    external: true
+    name: mynetwork
+
+services:
+  inference:
+    container_name: inference-basic-eth-pred
+    build:
+      context: .
+    command: python -u /app/app.py
+    ports:
+      - "8000:8000"
+    networks:
+      - eth-model-local
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/inference/ETH"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    volumes:
+      - ./inference-data:/app/data
+
+  updater:
+    container_name: updater-basic-eth-pred
+    build: .
+    environment:
+      - INFERENCE_API_ADDRESS=http://inference:8000
+    command: >
+      sh -c "
+      while true; do
+        python -u /app/update_app.py;
+        sleep 24h;
+      done
+      "
+    depends_on:
+      inference:
+        condition: service_healthy
+    networks:
+      - eth-model-local
+
+  worker:
+    container_name: worker-basic-eth-pred
+    environment:
+      - INFERENCE_API_ADDRESS=http://inference:8000
+      - HOME=/data
+    networks:
+      - eth-model-local
+      
 
 4️⃣ Install Docker-Compose
 ```
